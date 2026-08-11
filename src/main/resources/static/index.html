@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Graph Relationship Explorer</title>
+
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+<main class="container">
+
+    <!-- Header -->
+    <header class="hero">
+
+        <p class="eyebrow">
+            WEXA AI • CognoDB
+        </p>
+
+        <h1>
+            Graph Relationship Explorer
+        </h1>
+
+        <p class="subtitle">
+            Explore people and discover their connections
+            using graph database traversals.
+        </p>
+
+    </header>
+
+
+    <!-- Search Section -->
+    <section class="search-card">
+
+        <label for="personId">
+            Search Person
+        </label>
+
+        <div class="search-row">
+
+            <input
+                id="personId"
+                type="number"
+                min="1"
+                placeholder="Enter Person ID"
+                value="50000"
+            >
+
+            <button
+                id="searchButton"
+                type="button"
+            >
+                Search
+            </button>
+
+        </div>
+
+        <p class="hint">
+            Enter a Person ID to explore direct friends,
+            friends of friends, and the wider network.
+        </p>
+
+    </section>
+
+
+    <!-- Status Message -->
+    <div
+        id="status"
+        class="status"
+        role="status"
+        aria-live="polite">
+    </div>
+
+
+    <!-- Person Profile -->
+    <section
+        id="profile"
+        class="card hidden">
+    </section>
+
+
+    <!-- Graph Results -->
+    <section
+        id="results"
+        class="grid hidden">
+    </section>
+
+
+    <!-- Footer -->
+    <footer>
+
+        <p>
+            Powered by <strong>CognoDB</strong>
+            • Graph Database Application
+        </p>
+
+    </footer>
+
+</main>
+
+
+<script src="/app.js"></script>
+
+</body>
+
+</html>
