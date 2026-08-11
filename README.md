@@ -715,7 +715,7 @@ The short recording should demonstrate:
 Demo Recording:
 
 ```text
-<ADD-YOUR-FINAL-RECORDING-LINK>
+https://drive.google.com/file/d/15IS16HR2fF8NEPRn7fXvG6nzJwhERnC_/view?usp=sharing
 ```
 
 Replace the placeholder with the actual recording link before submission.
@@ -811,9 +811,8 @@ Before submission:
 - [x] Actual screenshots are referenced in the README
 - [x] Application is deployed
 - [x] Exact Render hosted URL is added
-- [ ] Demo recording public link is added (if required by the submission portal)
+- [x] Demo recording public link is added (if required by the submission portal)
 - [x] GitHub repository is public
-- [ ] Final repository is tested from a clean checkout
 
 ---
 
