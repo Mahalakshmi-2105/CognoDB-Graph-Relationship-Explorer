@@ -1,6 +1,6 @@
 # CognoDB Graph Relationship Explorer
 
-A small web application backed by CognoDB that allows a non-technical user to explore a Person graph and discover relationships between people through graph traversals.
+A small web application backed by **CognoDB** that allows a non-technical user to explore a Person graph and discover relationships between people through graph traversals.
 
 The application provides:
 
@@ -14,29 +14,34 @@ The application provides:
 - Database error handling
 - Responsive web interface
 
+---
+
 # 1. Project Overview
 
 The CognoDB Graph Relationship Explorer demonstrates how a graph database can be used to explore relationships between people.
 
 The application is built using:
 
-- Java 21
+- Java 17
 - Spring Boot 3.5.5
 - CognoDB
-- Neo4j Java Driver
+- Neo4j Java Driver 5.28.5
 - openCypher
 - HTML
 - CSS
 - JavaScript
 - Maven
+- Docker
 
 The backend exposes REST APIs and communicates with CognoDB using the Neo4j Java Driver.
 
 The frontend provides a simple interface where a user can enter a Person ID and explore the person's connections.
 
+---
+
 # 2. Use Case
 
-The selected use case is a Person Relationship Explorer.
+The selected use case is a **Person Relationship Explorer**.
 
 A user can search for a person and answer questions such as:
 
@@ -47,88 +52,96 @@ A user can search for a person and answer questions such as:
 
 This type of relationship traversal is naturally represented using a graph database.
 
+---
+
 # 3. Why a Graph Database?
 
 The application is centered on relationships between people.
 
-Questions such as "Who are this person's friends of friends?" require traversing multiple relationships.
+Questions such as:
 
-In a relational database, this type of query may require multiple joins and becomes increasingly complex as the traversal depth increases.
+> Who are this person's friends of friends?
 
-In a graph database, people are represented as nodes and their relationships are represented directly as edges.
+require traversing multiple relationships.
+
+In a relational database, this type of query may require multiple self-joins and becomes increasingly complex as the traversal depth increases.
+
+In a graph database:
+
+- People are represented as nodes.
+- Relationships are represented directly as edges.
+- Traversals can follow relationships directly.
+- Variable-length paths can be expressed naturally using openCypher.
 
 For this application, the relationship is represented as:
 
+```text
 (:Person)-[:FRIEND]->(:Person)
+```
 
 This makes multi-hop relationship traversal natural to express using openCypher.
+
+---
 
 # 4. Graph Data Model
 
 The application uses the following graph model:
 
+```text
 (:Person)-[:FRIEND]->(:Person)
+```
 
-Each Person contains:
+Each `Person` contains:
 
+```text
 Person
- ├── id
- ├── name
- └── age
+├── id
+├── name
+└── age
+```
 
 Example:
 
+```cypher
 (:Person {
     id: 50000,
     name: "Person50000",
     age: 56
 })
+```
 
 People are connected using:
 
+```text
 (:Person)-[:FRIEND]->(:Person)
+```
 
 Example:
 
+```text
 Person50000
      |
      | FRIEND
      v
 Person25497
+```
+
+---
 
 # 5. Graph Traversals
 
-The application supports multiple traversal depths.
+## 5.1 1-Hop - Direct Friends
 
-## 1-Hop - Direct Friends
-
-Person
-   |
-   | FRIEND
-   v
-Friend
-
-Query:
-
+```cypher
 MATCH (p:Person {id: $id})-[:FRIEND]->(f:Person)
 RETURN f.id AS id, f.name AS name, f.age AS age
 ORDER BY f.id
 LIMIT 50
+```
 
-## 2-Hop - Friends of Friends
+## 5.2 2-Hop - Friends of Friends
 
-Person
-   |
-   | FRIEND
-   v
-Friend
-   |
-   | FRIEND
-   v
-Friend of Friend
-
-Query:
-
+```cypher
 MATCH (p:Person {id: $id})-[:FRIEND]->()-[:FRIEND]->(f:Person)
 WHERE f.id <> $id
 RETURN DISTINCT
@@ -137,11 +150,11 @@ RETURN DISTINCT
        f.age AS age
 ORDER BY f.id
 LIMIT 50
+```
 
-## Up to 3-Hop Network
+## 5.3 Up to 3-Hop Network
 
-Query:
-
+```cypher
 MATCH (p:Person {id: $id})-[:FRIEND*1..3]->(f:Person)
 WHERE f.id <> $id
 RETURN DISTINCT
@@ -150,354 +163,392 @@ RETURN DISTINCT
        f.age AS age
 ORDER BY f.id
 LIMIT 100
+```
 
-This retrieves people reachable within one, two, or three FRIEND relationships.
+This retrieves people reachable within one, two, or three `FRIEND` relationships.
 
-# 6. Parameterized Queries
+---
+
+# 6. Relationally Awkward Query
+
+A key graph query in this application is the variable-depth traversal:
+
+```cypher
+MATCH (p:Person {id: $id})-[:FRIEND*1..3]->(f:Person)
+WHERE f.id <> $id
+RETURN DISTINCT
+       f.id AS id,
+       f.name AS name,
+       f.age AS age
+ORDER BY f.id
+LIMIT 100
+```
+
+This finds people reachable from a starting person within one to three relationship hops.
+
+In a relational database, an equivalent variable-depth traversal would require multiple self-joins or separate query logic for each relationship depth. Increasing the traversal depth would make the query more complex.
+
+In CognoDB, the variable-length path:
+
+```cypher
+[:FRIEND*1..3]
+```
+
+directly expresses the traversal.
+
+This is one of the main reasons a graph database is appropriate for this use case.
+
+---
+
+# 7. Parameterized Queries
 
 All application queries use parameters instead of directly concatenating user input into Cypher.
 
 Example:
 
+```cypher
 MATCH (p:Person {id: $id})
 RETURN p.id AS id, p.name AS name, p.age AS age
+```
 
 The parameter is supplied by the Neo4j Java Driver:
 
+```java
 Values.parameters("id", id)
+```
 
 This keeps user input separate from the Cypher query structure.
 
-# 7. Application Architecture
+---
 
-The application follows a simple layered architecture:
+# 8. Application Architecture
 
+```text
                     Web Browser
                          |
                          v
-                  HTML / CSS / JS
+                   HTML / CSS / JS
                          |
                          v
-                PersonController
+                  PersonController
                          |
                          v
-                   PersonService
+                    PersonService
                          |
                          v
                   PersonRepository
                          |
                          v
-                Neo4j Java Driver
+                  Neo4j Java Driver
                          |
                          v
-                      CognoDB
+                       CognoDB
+```
 
-## Controller
+- **PersonController.java** - exposes REST endpoints.
+- **PersonService.java** - service layer between controller and repository.
+- **PersonRepository.java** - contains the Cypher queries.
+- **CognoDbConfig.java** - configures the CognoDB connection.
+- **SeedData.java** - loads the required graph dataset when needed.
 
-PersonController.java
+---
 
-Responsible for exposing REST endpoints.
+# 9. Project Structure
 
-## Service
-
-PersonService.java
-
-Provides the service layer between the controller and repository.
-
-## Repository
-
-PersonRepository.java
-
-Contains the Cypher queries used to retrieve data from CognoDB.
-
-## Configuration
-
-CognoDbConfig.java
-
-Configures the CognoDB database connection.
-
-## Seed
-
-SeedData.java
-
-Provides the mechanism for loading the required graph dataset into a target CognoDB instance when needed.
-
-# 8. Project Structure
-
-CognoDB-Graph-App/
+```text
+CognoDB-Graph-Relationship-Explorer/
 │
 ├── src/
 │   ├── main/
 │   │   ├── java/
 │   │   │   └── com/wexa/cognograph/
 │   │   │       ├── CognoGraphApplication.java
-│   │   │       │
 │   │   │       ├── config/
 │   │   │       │   └── CognoDbConfig.java
-│   │   │       │
 │   │   │       ├── controller/
 │   │   │       │   └── PersonController.java
-│   │   │       │
 │   │   │       ├── repository/
 │   │   │       │   └── PersonRepository.java
-│   │   │       │
 │   │   │       ├── service/
 │   │   │       │   └── PersonService.java
-│   │   │       │
 │   │   │       └── seed/
 │   │   │           └── SeedData.java
-│   │   │
 │   │   └── resources/
 │   │       ├── datasets/
 │   │       │   ├── person.csv
 │   │       │   └── person_knows_person.csv
-│   │       │
 │   │       ├── static/
 │   │       │   ├── index.html
 │   │       │   ├── style.css
 │   │       │   └── app.js
-│   │       │
 │   │       └── application.properties
-│   │
 │   └── test/
 │
+├── Dockerfile
 ├── pom.xml
 └── README.md
+```
 
-# 9. Technologies Used
+---
+
+# 10. Technologies Used
 
 | Technology | Purpose |
 |---|---|
-| Java 21 | Backend programming language |
+| Java 17 | Backend programming language |
 | Spring Boot 3.5.5 | Web application framework |
 | CognoDB | Graph database |
-| Neo4j Java Driver | Database connectivity |
+| Neo4j Java Driver 5.28.5 | Database connectivity |
 | openCypher | Graph query language |
 | HTML | Web page structure |
 | CSS | User interface styling |
 | JavaScript | Frontend interaction |
 | Maven | Project/build management |
+| Docker | Deployment packaging |
 
-# 10. Environment Variables
+---
 
-The application uses environment variables for database configuration.
+# 11. CognoDB Setup
 
-Set the following variables before running the application:
+1. Create or sign in to a CognoDB account.
+2. Open the CognoDB console.
+3. Create a free CognoDB instance.
+4. Save the generated connection details and password securely.
 
-COGNODB_URI=bolt+s://<instance>.databases.cognodb.cloud
-COGNODB_USERNAME=cognodb
-COGNODB_PASSWORD=<your-password>
+The connection URI has the following form:
 
-Never commit real database credentials to GitHub.
+```text
+bolt+s://<instance-id>.databases.cognodb.cloud
+```
 
-Example application.properties:
+The database username is:
 
-cognodb.uri=${COGNODB_URI}
-cognodb.username=${COGNODB_USERNAME}
-cognodb.password=${COGNODB_PASSWORD}
+```text
+cognodb
+```
 
-# 11. Dataset
+Do not commit the password to GitHub.
 
-The application uses a Person graph dataset containing Person nodes and FRIEND relationships.
+---
 
-The repository contains CSV files under:
-
-src/main/resources/datasets/
-
-The dataset files are:
-
-person.csv
-person_knows_person.csv
-
-The dataset was adapted from the graph data used during the earlier CognoDB benchmarking work.
-
-The existing CognoDB dataset can also be reused when the target database already contains the required Person and FRIEND graph.
-
-# 12. Seed Data
-
-The repository includes:
-
-com.wexa.cognograph.seed.SeedData
-
-The seed process can be used when the target CognoDB instance needs the dataset.
-
-The purpose of the seed process is to provide a repeatable way to create the required graph data.
-
-Before running the seed process, ensure that:
-
-1. The CognoDB connection is configured.
-2. The correct database credentials are available.
-3. The required CSV files are present.
-4. The target database is intended to receive the seed data.
-
-If the target database already contains the required Assignment 1 dataset, the existing data can be reused instead of loading the dataset again.
-
-# 13. Running the Application
-
-## Step 1 - Clone the repository
-
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-
-## Step 2 - Open the project
-
-Open the project in Eclipse or another Java IDE.
-
-## Step 3 - Configure CognoDB
+# 12. Environment Variables
 
 Set:
 
+```text
+COGNODB_URI=bolt+s://<instance-id>.databases.cognodb.cloud
+COGNODB_USERNAME=cognodb
+COGNODB_PASSWORD=<your-password>
+```
+
+Never commit real database credentials to GitHub.
+
+The Spring Boot configuration uses:
+
+```properties
+cognodb.uri=${COGNODB_URI}
+cognodb.username=${COGNODB_USERNAME}
+cognodb.password=${COGNODB_PASSWORD}
+```
+
+---
+
+# 13. Dataset and Seed Data
+
+The application uses a Person graph dataset containing Person nodes and `FRIEND` relationships.
+
+CSV files are under:
+
+```text
+src/main/resources/datasets/
+```
+
+Files:
+
+```text
+person.csv
+person_knows_person.csv
+```
+
+The repository includes:
+
+```text
+com.wexa.cognograph.seed.SeedData
+```
+
+The seed process provides a repeatable way to create the required graph data when the target CognoDB instance needs it.
+
+Before running the seed process:
+
+1. Configure the CognoDB connection.
+2. Ensure the correct credentials are available.
+3. Ensure the CSV files are present.
+4. Ensure the target database is intended to receive the seed data.
+
+If the target database already contains the required dataset, the existing data can be reused.
+
+---
+
+# 14. Running the Application Locally
+
+## Clone
+
+```bash
+git clone https://github.com/Mahalakshmi-2105/CognoDB-Graph-Relationship-Explorer.git
+cd CognoDB-Graph-Relationship-Explorer
+```
+
+## Configure CognoDB
+
+Set:
+
+```text
 COGNODB_URI
 COGNODB_USERNAME
 COGNODB_PASSWORD
+```
 
-## Step 4 - Build the project
+## Build
 
+```bash
 mvn clean package
+```
 
-## Step 5 - Run the application
+## Run
 
+```bash
 mvn spring-boot:run
+```
 
-Or run:
-
-CognoGraphApplication.java
-
-from Eclipse.
-
-## Step 6 - Open the application
+Or run `CognoGraphApplication.java` from Eclipse.
 
 Open:
 
+```text
 http://localhost:8080
+```
 
-# 14. Using the Web Application
+---
 
-The application provides a simple Person search interface.
+# 15. Using the Web Application
 
-Example:
+Enter a Person ID, for example:
 
-Enter:
-
+```text
 50000
+```
 
-and click:
+and click **Search**.
 
-Search
+The application displays the person and:
 
-The application retrieves the person and displays:
+- Direct Friends
+- Friends of Friends (2 hops)
+- Network (up to 3 hops)
 
+Example person:
+
+```text
 Person50000
 Person ID: 50000
 Age: 56
+```
 
-The application then displays:
+---
 
-Direct Friends
+# 16. REST API
 
-Friends of Friends (2 hops)
+### Person Lookup
 
-Network (up to 3 hops)
-
-# 15. REST API
-
-## Person Lookup
-
+```text
 GET /api/person/{id}
+```
 
 Example:
 
+```text
 GET /api/person/50000
+```
 
-Example response:
+### Direct Friends
 
-{
-  "id": 50000,
-  "name": "Person50000",
-  "age": 56
-}
-
-## Direct Friends
-
+```text
 GET /api/person/{id}/friends
+```
 
-Example:
+### Friends of Friends
 
-GET /api/person/50000/friends
-
-## Friends of Friends
-
+```text
 GET /api/person/{id}/friends-of-friends
+```
 
-Example:
+### Network
 
-GET /api/person/50000/friends-of-friends
-
-## Network
-
+```text
 GET /api/person/{id}/network
+```
 
-Example:
+---
 
-GET /api/person/50000/network
+# 17. Example Test Results
 
-# 16. Example Test Results
+The application was tested using Person ID `50000`.
 
-The application was tested using Person ID:
+Person lookup:
 
-50000
-
-Person lookup returned:
-
+```text
 ID   : 50000
 Name : Person50000
 Age  : 56
+```
 
-Direct friend traversal returned:
+Direct friend traversal:
 
+```text
 4 results
+```
 
-Friends-of-friends traversal returned:
+Friends-of-friends traversal:
 
+```text
 11 results
+```
 
-The network traversal up to three hops returned:
+Network traversal up to three hops:
 
-48 results
+```text
+47 results
+```
 
-These results demonstrate that the application is successfully retrieving graph relationships from CognoDB.
+These results demonstrate that the application successfully retrieves graph relationships from CognoDB.
 
-# 17. Error Handling
+---
 
-The application handles database/request errors through the REST controller.
+# 18. Error Handling
 
-If CognoDB cannot be reached or a database query fails, the application returns an internal server error response with a user-friendly message.
+If CognoDB cannot be reached or a query fails, the application returns an internal server error with a user-friendly message.
 
 Example:
 
+```json
 {
   "error": "Unable to reach or query CognoDB",
   "message": "Please check the database connection and try again."
 }
+```
 
-The frontend also provides status messages such as:
+The frontend also provides:
 
+```text
 Loading graph data...
-
-and:
-
 Graph loaded successfully.
-
-If no connections are found, the application displays:
-
 No connections found.
-
-If a person does not exist, the application reports:
-
 Person not found.
+```
 
-# 18. UI Features
+---
 
-The web interface provides:
+# 19. UI Features
 
 - Person ID search
 - Person profile information
@@ -511,19 +562,20 @@ The web interface provides:
 - Error message
 - Responsive layout
 
-The UI is implemented using plain HTML, CSS, and JavaScript and does not require a separate frontend framework.
+The UI is implemented using HTML, CSS, and JavaScript.
 
-# 19. Data Flow
+---
 
-The application follows this flow:
+# 20. Data Flow
 
+```text
 User enters Person ID
           |
           v
-      Web Browser
+     Web Browser
           |
           v
-      REST Request
+     REST Request
           |
           v
    PersonController
@@ -535,39 +587,152 @@ User enters Person ID
    PersonRepository
           |
           v
-    Cypher Query
+     Cypher Query
           |
           v
-      CognoDB
+       CognoDB
           |
           v
      Query Results
           |
           v
-      REST Response
+     REST Response
           |
           v
-      Web Browser
+     Web Browser
+```
 
-# 20. Security Considerations
+---
 
-Database credentials are not stored directly in the source code.
+# 21. Security Considerations
 
-The application uses environment variables:
+Database credentials are not stored directly in source code.
 
+The application uses:
+
+```text
 COGNODB_URI
 COGNODB_USERNAME
 COGNODB_PASSWORD
+```
 
-Cypher queries use parameters such as:
+Cypher queries use parameters such as `$id` instead of concatenating user input into queries.
 
-$id
+Real credentials must never be committed to GitHub.
 
-instead of directly concatenating user-provided values into queries.
+---
 
-Real credentials must not be committed to GitHub.
+# 22. Deployment
 
-# 21. Limitations
+The application is containerized using Docker and deployed on **Render** as a Docker-based Web Service.
+
+The project contains:
+
+```text
+Dockerfile
+```
+
+Render is configured with:
+
+```text
+COGNODB_URI
+COGNODB_USERNAME
+COGNODB_PASSWORD
+```
+
+The credentials are configured in Render and are not stored in GitHub.
+
+Deployment flow:
+
+```text
+GitHub Repository
+       |
+       v
+     Render
+       |
+       v
+ Docker Build
+       |
+       v
+ Java 17 / Spring Boot
+       |
+       v
+    CognoDB
+```
+
+---
+
+# 23. Hosted Demo
+
+The application has been deployed successfully on Render and verified using the live web application.
+
+**Live Demo:** https://cognodb-graph-relationship-explorer.onrender.com/
+
+The hosted application connects to CognoDB using the configured Render environment variables.
+
+---
+
+# 24. Screenshots
+
+The following screenshots demonstrate the working application.
+
+### 24.1 Application Home Page
+
+![Application Home Page](screenshots/01-home-page.png)
+
+### 24.2 Person Details
+
+![Person Details](screenshots/02-person-details.png)
+
+### 24.3 Direct Friends
+
+![Direct Friends](screenshots/03-direct-friends.png)
+
+### 24.4 Friends of Friends - 2 Hops
+
+![Friends of Friends](screenshots/04-friends-of-friends.png)
+
+### 24.5 Network - Up to 3 Hops
+
+![Three-Hop Network](screenshots/05-three-hop-network.png)
+
+These screenshots show the application searching for Person `50000`, displaying the person's details, direct friends, 2-hop friends, and the wider network up to 3 hops.
+
+---
+
+# 25. Demo Recording
+
+The short recording should demonstrate:
+
+1. Opening the application.
+2. Searching for a Person.
+3. Viewing Person details.
+4. Viewing direct friends.
+5. Viewing 2-hop friends.
+6. Viewing the 3-hop network.
+7. Showing the application working with CognoDB.
+
+Demo Recording:
+
+```text
+<ADD-YOUR-FINAL-RECORDING-LINK>
+```
+
+Replace the placeholder with the actual recording link before submission.
+
+---
+
+# 26. GitHub Repository
+
+The complete project is available at:
+
+https://github.com/Mahalakshmi-2105/CognoDB-Graph-Relationship-Explorer
+
+The repository contains the Java source code, web interface, dataset files, seed mechanism, Dockerfile, configuration, and documentation.
+
+---
+
+# 27. Limitations
 
 The current application is intentionally small and focused on demonstrating graph traversal.
 
@@ -575,13 +740,14 @@ Current limitations include:
 
 - The application focuses on Person and FRIEND relationships.
 - Results are limited to a fixed number of records.
-- The network view currently returns relationship results rather than a visual node-link graph.
-- Authentication for application users is not implemented.
-- The application depends on the availability of the configured CognoDB instance.
-- Deployment depends on the availability of a suitable hosting environment and database connection.
-- The application is intended as a demonstration of graph traversal rather than a production-scale social networking platform.
+- The network view returns relationship results rather than a visual node-link graph.
+- Authentication is not implemented.
+- The application depends on the configured CognoDB instance.
+- The application is intended as a graph traversal demonstration rather than a production-scale social networking platform.
 
-# 22. Future Improvements
+---
+
+# 28. Future Improvements
 
 Possible future enhancements include:
 
@@ -594,113 +760,65 @@ Possible future enhancements include:
 - User authentication
 - Caching
 - More detailed graph analytics
-- Production deployment
 - Monitoring and logging
 - Additional automated tests
 
-# 23. Assignment 2 Deliverables
+---
 
-The final submission should include:
+# 29. Assignment Deliverables
+
+The project provides:
 
 - Working CognoDB-backed application
 - Seed/data-loading mechanism
 - Graph data model
 - Explanation of why a graph database is appropriate
 - Parameterized Cypher queries
-- At least one multi-hop traversal
+- Multi-hop graph traversal
+- A relationally awkward variable-depth traversal
 - Functional web interface
-- Loading and empty states
+- Loading state
+- Empty state
 - Error handling
 - README documentation
 - UI screenshots
-- Deployment details
-- Hosted demo URL
+- Docker deployment configuration
+- Hosted demo
 - Short screen recording
 - Public GitHub repository
 
-# 24. Screenshots
+---
 
-Add application screenshots here before final submission.
+# 30. Final Verification Checklist
 
-## Application Home Page
+Before submission:
 
-Add screenshot here.
+- [x] Application starts successfully
+- [x] CognoDB connection works
+- [x] Person lookup works
+- [x] Direct friends query works
+- [x] 2-hop query works
+- [x] 3-hop/network query works
+- [x] Parameterized Cypher is used
+- [x] Error handling is implemented
+- [x] Loading/status message is implemented
+- [x] Empty state is implemented
+- [x] UI is responsive
+- [x] SeedData is present
+- [x] Dataset files are present
+- [x] No real credentials are committed
+- [x] README documentation is complete
+- [x] Actual screenshots are referenced in the README
+- [x] Application is deployed
+- [x] Exact Render hosted URL is added
+- [ ] Demo recording public link is added (if required by the submission portal)
+- [x] GitHub repository is public
+- [ ] Final repository is tested from a clean checkout
 
-## Person Search Result
+---
 
-Add screenshot here.
+# 31. Author
 
-## Direct Friends
+**Mahalakshmi**
 
-Add screenshot here.
-
-## Friends of Friends - 2 Hops
-
-Add screenshot here.
-
-## Network - Up to 3 Hops
-
-Add screenshot here.
-
-# 25. Hosted Demo
-
-Add the deployed application URL here after deployment.
-
-Hosted Demo:
-Deployment pending.
-
-# 26. GitHub Repository
-
-Add the final public repository URL here:
-
-GitHub Repository:
-https://github.com/Mahalakshmi-2105/CognoDB-Graph-Relationship-Explorer
-
-# 27. Demo Recording
-
-Add the screen recording reference/link here before submission.
-
-The recording should demonstrate:
-
-1. Opening the application.
-2. Searching for a Person.
-3. Viewing the Person details.
-4. Viewing direct friends.
-5. Viewing 2-hop friends.
-6. Viewing the 3-hop network.
-7. Showing the application working with CognoDB.
-
-Demo Recording:
-<ADD_RECORDING_LINK>
-
-# 28. Final Verification Checklist
-
-Before submitting the project, verify:
-
-[ ] Application starts successfully
-[ ] CognoDB connection works
-[ ] Person lookup works
-[ ] Direct friends query works
-[ ] 2-hop query works
-[ ] 3-hop/network query works
-[ ] Parameterized Cypher is used
-[ ] Error handling works
-[ ] Loading/status message works
-[ ] Empty state works
-[ ] UI is responsive
-[ ] SeedData is present
-[ ] Dataset files are present
-[ ] No real credentials are committed
-[ ] README is complete
-[ ] Screenshots are added
-[ ] Application is deployed
-[ ] Hosted URL is added
-[ ] Demo recording is completed
-[ ] GitHub repository is public
-[ ] Final repository is tested from a clean checkout
-
-# 29. Author
-
-Mahalakshmi
-
-Graph Relationship Explorer using CognoDB, Spring Boot, and openCypher.
+Graph Relationship Explorer using **CognoDB, Spring Boot, Java 17, and openCypher**.
